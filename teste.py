@@ -4,6 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import time
+from datetime import datetime
 
 class ConsultaNotas:
     def __init__(self, url, dados_login_empresa):
@@ -92,6 +93,8 @@ class ConsultaNotas:
 
         # Adicionando a coluna '%Frete'
         df['Perc.Frete'] = df.apply(lambda row: self.calcular_percentual_frete(row['VALOR FRETE'], row['Valor Total']), axis=1)
+
+        df['DATA STATUS'] = datetime.now().strftime('%d/%m/%Y')
 
     def obter_regiao(self, uf):
         # Mapeando a região com base na UF
