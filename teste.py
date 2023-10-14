@@ -6,18 +6,36 @@ import re
 import time
 from datetime import datetime
 
+st.set_page_config(
+    page_title="Dona sorte",
+    page_icon=":robot_face:",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+
+
+
 class ConsultaNotas:
     def __init__(self, url, dados_login_empresa):
         self.url = url
         self.dados_login_empresa = dados_login_empresa
 
-    def extrair_data_especifica(self, soup):
+
+    def extrair_data_especifica(self,soup):
+        # Encontrar todos os elementos <p> com a classe 'tdb'
         elementos_tdb = soup.find_all('p', {'class': 'tdb'})
+
         for elemento in elementos_tdb:
-            match = re.search(r'\b\d{2}/\d{2}/\d{4}\b', elemento.get_text())
+            # Procura pelo padrão "DD/MM/YY" no texto do elemento
+            match = re.search(r'\b\d{2}/\d{2}/\d{2}\b', elemento.get_text())
             if match:
-                return match.group()
+                data_formatada = datetime.strptime(match.group(), '%d/%m/%y').strftime('%d/%m/%Y')
+                return data_formatada
         return "Data não encontrada"
+
+
+
 
     def obter_nome_mes(self, data):
         # Função para obter o nome do mês a partir da data no formato DD/MM/YYYY
@@ -50,7 +68,7 @@ class ConsultaNotas:
             return f"{percentual_frete:.2f}%"
         return ''
 
-    def realizar_consulta_por_nota(self, nome_tabela, senha, numero_nota):
+    def realizar_consulta_por_nota(self, nome_tabela, senha, numero_nota, df):
         payload = {
             'cnpj': self.dados_login_empresa[nome_tabela]['cnpj'],
             'NR': numero_nota,
@@ -60,7 +78,7 @@ class ConsultaNotas:
         response = requests.post(self.url, data=payload)
 
         if response.status_code == 200:
-            st.write(f'Login realizado para {nome_tabela} - Nota {numero_nota}')
+            #st.write(f'Login realizado para {nome_tabela} - Nota {numero_nota}')
             soup = BeautifulSoup(response.text, 'html.parser')
             info_block = soup.find('tr', {'style': 'background-color:#FFFFFF;cursor:pointer;'})
 
@@ -70,19 +88,36 @@ class ConsultaNotas:
 
                 if situacao_element and nf_element:
                     situacao_text = situacao_element.get_text(strip=True)
+
+                    # Remover conteúdo entre parênteses
+                    situacao_text = re.sub(r'\([^)]*\)', '', situacao_text)
+
                     nf_text = nf_element.get_text(strip=True)
                     data_situacao = self.extrair_data_especifica(soup)
 
-                    st.write(f'Situação da Mercadoria: {situacao_text}')
-                    st.write(f'NF: {nf_text}')
-                    st.write(f'Data: {data_situacao}')
-                    st.write('-' * 40)
+                    # Atualizar a coluna 'DATA ENTREGA' com o valor de 'data_situacao'
+                    df.loc[df['Nro. Nota'] == numero_nota, 'DATA ENTREGA'] = data_situacao
+                    df.loc[df['Nro. Nota'] == numero_nota, 'STATUS'] = situacao_text
+
+                    #st.write(f'Situação da Mercadoria: {situacao_text}')
+                    #st.write(f'NF: {nf_text}')
+                    #st.write(f'Data: {data_situacao}')
+                    #st.write('-' * 40)
+
+                    # Exibir o DataFrame atualizado após cada consulta
+                    #st.write("DataFrame Atualizado:")
+                    
+                    #st.write(df)
+
+
+                    dataframe_atualizado.dataframe(df.tail(100)) 
+
+
                 else:
                     st.write(f'Elementos de situação, NF ou data não encontrados para {nome_tabela} - Nota {numero_nota}')
             else:
                 st.write(f'Bloco de informações não encontrado para {nome_tabela} - Nota {numero_nota}')
-        else:
-            st.write(f'Erro no login para {nome_tabela} - Nota {numero_nota}')
+
 
     def atualizar_colunas(self, df):
         # Atualizando a coluna 'MÊS' com base na coluna 'Data de Saída'
@@ -95,10 +130,6 @@ class ConsultaNotas:
         df['Perc.Frete'] = df.apply(lambda row: self.calcular_percentual_frete(row['VALOR FRETE'], row['Valor Total']), axis=1)
 
         df['DATA STATUS'] = datetime.now().strftime('%d/%m/%Y')
-
-        df['LEADTIME'] = (pd.to_datetime(df['DATA ENTREGA'], errors='coerce') - pd.to_datetime(df['Data de Saída'], errors='coerce')).dt.days
-
-
 
     def obter_regiao(self, uf):
         # Mapeando a região com base na UF
@@ -147,7 +178,7 @@ class ConsultaNotas:
 
         # Iterando sobre as notas e realizando as consultas
         for numero_nota in notas_selecionadas:
-            self.realizar_consulta_por_nota(tabela_selecionada, senha_empresa_selecionada, numero_nota)
+            self.realizar_consulta_por_nota(tabela_selecionada, senha_empresa_selecionada, numero_nota, df)
             time.sleep(5)  # Atraso de 5 segundos entre as consultas
 
 # URL para consulta
@@ -190,8 +221,9 @@ if uploaded_file is not None:
     # Corrigindo o nome da coluna após renomeação
     df['Nro. Nota'] = df['Nro. Nota'].astype(str).str.replace('.', '')
 
+
     # Removendo o último caractere de cada valor na coluna 'Nro. Nota'
-    df['Nro. Nota'] = df['Nro. Nota'].astype(str).apply(lambda x: x[:-1] if x.isdigit() else x)
+    #df['Nro. Nota'] = df['Nro. Nota'].astype(str).apply(lambda x: x[:-1] if x.isdigit() else x)
 
     # Atualizando as colunas 'MÊS', 'Região' e adicionando a coluna '%Frete'
     consulta_notas.atualizar_colunas(df)
@@ -203,14 +235,15 @@ if uploaded_file is not None:
     df['DATA STATUS'] = pd.to_datetime(df['DATA STATUS'], errors='coerce').dt.strftime('%d/%m/%Y')
     df['Dt.Faturamento'] = pd.to_datetime(df['Dt.Faturamento'], errors='coerce').dt.strftime('%d/%m/%Y')
 
-    # Exibir o DataFrame
-    st.write("DataFrame Carregado:")
-    st.write(df)
+
 
     # ... (seu código existente)
     # Seleção da tabela
     tabelas = df['Transportadora'].unique().tolist()  # Adicione mais tabelas conforme necessário
     tabela_selecionada = st.selectbox('Selecione a transportadora:', tabelas)
+
+    dataframe_atualizado = st.empty()  # Este é o espaço reservado para o DataFrame
+
 
     # Botão para realizar as consultas
     if st.button('Realizar Consultas') and tabela_selecionada:
