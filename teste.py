@@ -96,6 +96,10 @@ class ConsultaNotas:
 
         df['DATA STATUS'] = datetime.now().strftime('%d/%m/%Y')
 
+        df['LEADTIME'] = (pd.to_datetime(df['DATA ENTREGA'], errors='coerce') - pd.to_datetime(df['Data de Saída'], errors='coerce')).dt.days
+
+
+
     def obter_regiao(self, uf):
         # Mapeando a região com base na UF
         regioes = {
