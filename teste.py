@@ -107,6 +107,13 @@ if uploaded_file is not None:
     # Removendo os pontos da coluna "Nro. Nota"
     df['Nro. Nota'] = df['Nro. Nota'].astype(str).str.replace('.', '')
 
+
+
+    # Removendo o último caractere de cada valor na coluna 'Nro. Nota'
+    df['Nro. Nota'] = df['Nro. Nota'].astype(str).apply(lambda x: x[:-1] if x.isdigit() else x)
+
+
+
     # Formatando as colunas de datas
     df['Data de Saída'] = pd.to_datetime(df['Data de Saída'], errors='coerce').dt.strftime('%d/%m/%Y')
     df['PREVISÃO DE ENTREGA'] = pd.to_datetime(df['PREVISÃO DE ENTREGA'], errors='coerce').dt.strftime('%d/%m/%Y')
