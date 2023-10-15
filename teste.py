@@ -185,13 +185,17 @@ class ConsultaNotas:
 # URL para consulta
 url = 'https://ssw.inf.br/2/resultSSW'
 
-
 # Dados de login para empresas
 dados_login_empresa = {
     'TG TRANSPORTES GERAIS E DISTRIBUICAO LTDA': {
         'cnpj': '07117654000149',
         'senha': 'MAIORALT',
     },
+    'JEONCEL TRANSPORTES LTDA': {
+        'cnpj': '07117654000149',
+        'senha': 'JEO@397',
+    },
+    # Adicione mais empresas conforme necessário
 }
 
 # Instância da classe de consulta
