@@ -191,9 +191,13 @@ dados_login_empresa = {
         'cnpj': '07117654000149',
         'senha': 'MAIORALT',
     },
-    'JEONCEL TRANSPORTES LTDA': {
+    'FITLOG TRANSPORTES E LOGISTICA': {
         'cnpj': '07117654000149',
-        'senha': 'JEO@397',
+        'senha': 'FOTUS23',
+    },
+    'CT DISTRIBUICAO E LOGISTICA LTDA': {
+        'cnpj': '07117654000149',
+        'senha': 'FOTUS@',
     },
     # Adicione mais empresas conforme necessário
 }
