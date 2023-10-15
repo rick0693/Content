@@ -104,7 +104,7 @@ class ConsultaNotas:
                     df.loc[df['Nro. Nota'] == numero_nota, 'STATUS'] = situacao_text
 
                     # Exibir o DataFrame atualizado após cada consulta
-                    dataframe_atualizado.dataframe(df.tail(100)) 
+                    dataframe_atualizado.dataframe(df.tail(100000)) 
 
                 else:
                     st.write(f'Elementos de situação, NF ou data não encontrados para {nome_tabela} - Nota {numero_nota}')
