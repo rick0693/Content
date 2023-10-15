@@ -230,7 +230,7 @@ if uploaded_file is not None:
 
 
     # Removendo o último caractere de cada valor na coluna 'Nro. Nota'
-    #df['Nro. Nota'] = df['Nro. Nota'].astype(str).apply(lambda x: x[:-1] if x.isdigit() else x)
+    df['Nro. Nota'] = df['Nro. Nota'].astype(str).apply(lambda x: x[:-1] if x.isdigit() else x)
 
     # Atualizando as colunas 'MÊS', 'Região' e adicionando a coluna '%Frete'
     consulta_notas.atualizar_colunas(df)
