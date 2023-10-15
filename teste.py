@@ -192,11 +192,6 @@ dados_login_empresa = {
         'cnpj': '07117654000149',
         'senha': 'MAIORALT',
     },
-    'TENHOMOVEIS COMERCIO DE MOVEIS E UTENSILIOS DOMESTICOS LTDA': {
-        'cnpj': '07117654000149',
-        'senha': ' ',
-    },
-    # Adicione mais empresas conforme necessário
 }
 
 # Instância da classe de consulta
