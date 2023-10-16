@@ -31,7 +31,6 @@ class ConsultaNotas:
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS consultas (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                tabela TEXT,  -- Adicione a coluna 'tabela'
                 Nro_Fotus TEXT,
                 Data_Saida TEXT,
                 MES TEXT,
@@ -104,32 +103,35 @@ class ConsultaNotas:
         conn = sqlite3.connect(self.db_filename)
         cursor = conn.cursor()
 
+        # Limpar todos os registros da tabela
+        cursor.execute('DELETE FROM consultas')
+
         for _, row in df.iterrows():
             nota = row['Numero_Nota']
-            status = row['STATUS']
-            data_entrega = row['Data_Entrega'] if 'Data_Entrega' in row else None  # Ajuste conforme suas colunas
+            data_entrega = row['Data_Entrega'] if 'Data_Entrega' in row else None
 
-            # Adicionar a consulta ao banco de dados
+            # Inserir novos dados
             cursor.execute('''
                 INSERT INTO consultas (
                     Nro_Fotus, Data_Saida, MES, UF, Regiao, Numero_Nota, Valor_Total,
                     Valor_Frete, Peso, Perc_Frete, Transportadora, Dt_Faturamento,
                     PLATAFORMA, Previsao_Entrega, Data_Entrega, Data_Status, STATUS,
-                    Situacao_Entrega, Leadtime, tabela
+                    Situacao_Entrega, Leadtime
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 row['Nro_Fotus'], row['Data_Saida'], row['MES'], row['UF'],
                 row['Regiao'], row['Numero_Nota'], row['Valor_Total'],
                 row['Valor_Frete'], row['Peso'], row['Perc_Frete'],
                 row['Transportadora'], row['Dt_Faturamento'],
                 row['PLATAFORMA'], row['Previsao_Entrega'], row['Data_Entrega'],
-                row['Data_Status'], row['STATUS'], row['Situacao_Entrega'], row['Leadtime'],
-                tabela
+                row['Data_Status'], row['STATUS'], row['Situacao_Entrega'], row['Leadtime']
             ))
 
         conn.commit()
         conn.close()
+
+
 
     def realizar_consulta_por_nota(self, nome_tabela, senha, Numero_Nota, df):
         payload = {
@@ -163,60 +165,13 @@ class ConsultaNotas:
 
                 df.loc[df['Numero_Nota'] == Numero_Nota, 'STATUS'] = situacao_text
 
-                # Verificar se há diferenças entre os dados existentes no banco e os novos dados
-                dados_banco = self.obter_dados_consulta(nome_tabela, Numero_Nota)
-                if dados_banco is not None and not dados_banco.equals(df[df['Numero_Nota'] == Numero_Nota]):
-                    # Se houver diferenças, atualizar os dados no banco
-                    self.atualizar_dados_consulta(nome_tabela, Numero_Nota, df)
+                # Salvar todos os resultados no banco de dados
+                self.salvar_resultados_consulta(nome_tabela, df)
 
-        # Exibir o DataFrame atualizado após cada consulta
-        dataframe_atualizado.dataframe(df.tail(100000000))
-        st.write("Resultados salvos no banco de dados.")
+                # Exibir o DataFrame atualizado após cada consulta
+                dataframe_atualizado.dataframe(df.tail(100000000))
+                st.toast("Resultados salvos no banco de dados.")
 
-    def obter_dados_consulta(self, tabela, Numero_Nota):
-        conn = sqlite3.connect(self.db_filename)
-        query = f"SELECT * FROM consultas WHERE tabela = '{tabela}' AND Numero_Nota = '{Numero_Nota}'"
-        dados_banco = pd.read_sql_query(query, conn)
-        conn.close()
-        return dados_banco
-
-    def atualizar_dados_consulta(self, tabela, Numero_Nota, df):
-        conn = sqlite3.connect(self.db_filename)
-        cursor = conn.cursor()
-
-        for _, row in df[df['Numero_Nota'] == Numero_Nota].iterrows():
-            cursor.execute('''
-                UPDATE consultas SET
-                    Nro_Fotus = ?,
-                    Data_Saida = ?,
-                    MES = ?,
-                    UF = ?,
-                    Regiao = ?,
-                    Valor_Total = ?,
-                    Valor_Frete = ?,
-                    Peso = ?,
-                    Perc_Frete = ?,
-                    Transportadora = ?,
-                    Dt_Faturamento = ?,
-                    PLATAFORMA = ?,
-                    Previsao_Entrega = ?,
-                    Data_Entrega = ?,
-                    Data_Status = ?,
-                    STATUS = ?,
-                    Situacao_Entrega = ?,
-                    Leadtime = ?
-                WHERE tabela = ? AND Numero_Nota = ?
-            ''', (
-                row['Nro_Fotus'], row['Data_Saida'], row['MES'], row['UF'],
-                row['Regiao'], row['Valor_Total'], row['Valor_Frete'], row['Peso'],
-                row['Perc_Frete'], row['Transportadora'], row['Dt_Faturamento'],
-                row['PLATAFORMA'], row['Previsao_Entrega'], row['Data_Entrega'],
-                row['Data_Status'], row['STATUS'], row['Situacao_Entrega'],
-                row['Leadtime'], tabela, Numero_Nota
-            ))
-
-        conn.commit()
-        conn.close()
 
     def atualizar_situacao_entrega(self, df, Numero_Nota):
         # Função para atualizar a coluna 'Situacao_Entrega'
@@ -365,10 +320,14 @@ if uploaded_file is not None:
 
     # Seleção da tabela
     tabelas = df['Transportadora'].unique().tolist()  # Adicione mais tabelas conforme necessário
-    tabela_selecionada = st.selectbox('Selecione a transportadora:', tabelas)
+
+
+    # Seleção das transportadoras usando checkboxes
+    transportadoras_selecionadas = st.multiselect('Selecione as transportadoras:', tabelas)
 
     dataframe_atualizado = st.empty()  # Este é o espaço reservado para o DataFrame
 
     # Botão para realizar as consultas
-    if st.button('Realizar Consultas') and tabela_selecionada:
-        consulta_notas.realizar_consultas(tabela_selecionada, df)
+    if st.button('Realizar Consultas') and transportadoras_selecionadas:
+        for tabela_selecionada in transportadoras_selecionadas:
+            consulta_notas.realizar_consultas(tabela_selecionada, df)
