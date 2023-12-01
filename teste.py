@@ -1,74 +1,155 @@
 import pandas as pd
 import streamlit as st
-import requests
-from bs4 import BeautifulSoup
-import re
-import time
-from datetime import datetime
 import sqlite3
+from datetime import datetime
+import pandas as pd
+import streamlit as st
+import sqlite3
+from datetime import datetime
+import streamlit as st
+import requests
+import sqlite3
+from time import sleep
 
 st.set_page_config(
-    page_title="Dona sorte",
+    page_title="Consulta_SSW",
     page_icon=":robot_face:",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-class ConsultaNotas:
-    def __init__(self, url, dados_login_empresa, db_filename='consultas.db'):
-        self.url = url
-        self.dados_login_empresa = dados_login_empresa
-        self.db_filename = db_filename
 
-        # Criar a tabela no banco de dados se não existir
-        self._criar_tabela_consultas()
 
-    def _criar_tabela_consultas(self):
-        conn = sqlite3.connect(self.db_filename)
-        cursor = conn.cursor()
+# Função para a página de Notícias
+def Coleta_Dados():
 
-        # Ajuste conforme suas colunas
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS consultas (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Nro_Fotus TEXT,
-                Data_Saida TEXT,
-                MES TEXT,
-                UF TEXT,
-                Regiao TEXT,
-                Numero_Nota TEXT,
-                Valor_Total TEXT,
-                Valor_Frete TEXT,
-                Peso TEXT,
-                Perc_Frete TEXT,
-                Transportadora TEXT,
-                Dt_Faturamento TEXT,
-                PLATAFORMA TEXT,
-                Previsao_Entrega TEXT,
-                Data_Entrega TEXT,
-                Data_Status TEXT,
-                STATUS TEXT,
-                Situacao_Entrega TEXT,
-                Leadtime TEXT
-            )
-        ''')
+    class ConsultaNotas:
+        def __init__(self, db_filename='consultas.db'):
+            self.db_filename = db_filename
 
-        conn.commit()
-        conn.close()
+            # Criar a tabela no banco de dados se não existir
+            self._criar_tabela_consultas()
 
-    def extrair_data_especifica(self, soup):
-        # Encontrar todos os elementos <p> com a classe 'tdb'
-        elementos_tdb = soup.find_all('p', {'class': 'tdb'})
+        def _criar_tabela_consultas(self):
+            conn = sqlite3.connect(self.db_filename)
+            cursor = conn.cursor()
 
-        for elemento in elementos_tdb:
-            # Procura pelo padrão "DD/MM/YY" no texto do elemento
-            match = re.search(r'\b\d{2}/\d{2}/\d{2}\b', elemento.get_text())
-            if match:
-                data_formatada = datetime.strptime(match.group(), '%d/%m/%y').strftime('%d/%m/%Y')
-                return data_formatada
-        return "Data não encontrada"
+            # Ajuste conforme suas colunas
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS consultas (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Nro_Fotus TEXT,
+                    Data_Saida TEXT,
+                    MES TEXT,
+                    UF TEXT,
+                    Regiao TEXT,
+                    Numero_Nota TEXT,
+                    Valor_Total TEXT,
+                    Valor_Frete TEXT,
+                    Peso TEXT,
+                    Perc_Frete TEXT,
+                    Transportadora TEXT,
+                    Dt_Faturamento TEXT,
+                    PLATAFORMA TEXT,
+                    Previsao_Entrega TEXT,
+                    Data_Entrega TEXT,
+                    Data_Status TEXT,
+                    STATUS TEXT,
+                    Situacao_Entrega TEXT,
+                    Leadtime TEXT
+                )
+            ''')
 
-    def obter_nome_mes(self, data):
+            conn.commit()
+            conn.close()
+
+        def salvar_resultados_consulta(self, df):
+            conn = sqlite3.connect(self.db_filename)
+            cursor = conn.cursor()
+
+            # Limpar todos os registros da tabela
+            cursor.execute('DELETE FROM consultas')
+
+            for _, row in df.iterrows():
+                cursor.execute('''
+                    INSERT INTO consultas (
+                        Nro_Fotus, Data_Saida, MES, UF, Regiao, Numero_Nota, Valor_Total,
+                        Valor_Frete, Peso, Perc_Frete, Transportadora, Dt_Faturamento,
+                        PLATAFORMA, Previsao_Entrega, Data_Entrega, Data_Status, STATUS,
+                        Situacao_Entrega, Leadtime
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    row['Nro_Fotus'], row['Data_Saida'], row['MES'], row['UF'],
+                    row['Regiao'], row['Numero_Nota'], row['Valor_Total'],
+                    row['Valor_Frete'], row['Peso'], row['Perc_Frete'],
+                    row['Transportadora'], row['Dt_Faturamento'],
+                    row['PLATAFORMA'], row['Previsao_Entrega'], row['Data_Entrega'],
+                    row['Data_Status'], row['STATUS'], row['Situacao_Entrega'], row['Leadtime']
+                ))
+
+            conn.commit()
+            conn.close()
+
+    # URL para consulta
+
+    # Instância da classe de consulta
+    consulta_notas = ConsultaNotas()
+
+    # Função para carregar os dados e realizar consultas
+    @st.cache_data
+    def load_and_process_data(uploaded_file):
+        df = pd.read_excel(uploaded_file)
+
+        # Renomeando as colunas para corresponder à estrutura desejada
+        df.rename(columns={
+            'Numero_Nota': 'Numero_Nota',
+            'Nro_Fotus': 'Nro_Fotus',
+            'Previsao_Entrega': 'Previsao_Entrega',
+            'Data_Entrega': 'Data_Entrega',
+            'Data_Status': 'Data_Status',
+            # Adicione mais renomeações conforme necessário
+        }, inplace=True)
+
+        # Ajustando o formato da coluna "Nro_Fotus" conforme sua expressão
+        df['Nro_Fotus'] = df['Nro_Fotus'].apply(lambda x: f"0{str(int(x))[:-2]}-{str(int(x))[-2:]}" if not pd.isna(x) else "")
+
+
+        # Removendo os pontos da coluna "Numero_Nota"
+        # Corrigindo o nome da coluna após renomeação
+        df['Numero_Nota'] = df['Numero_Nota'].astype(str).str.replace('.', '')
+
+
+        # Atualizando as colunas 'MES ', 'Regiao' e adicionando a coluna '%Frete'
+        df = atualizar_colunas(df)
+
+        # Formatando as colunas de datas
+        df['Data_Saida'] = pd.to_datetime(df['Data_Saida'], errors='coerce').dt.strftime('%d/%m/%Y')
+        df['Previsao_Entrega'] = pd.to_datetime(df['Previsao_Entrega'], errors='coerce').dt.strftime('%d/%m/%Y')
+        df['Data_Entrega'] = pd.to_datetime(df['Data_Entrega'], errors='coerce').dt.strftime('%d/%m/%Y')
+        df['Data_Status'] = pd.to_datetime(df['Data_Status'], errors='coerce').dt.strftime('%d/%m/%Y')
+        df['Dt_Faturamento'] = pd.to_datetime(df['Dt_Faturamento'], errors='coerce').dt.strftime('%d/%m/%Y')
+
+        # Salvar resultados no banco de dados
+        consulta_notas.salvar_resultados_consulta(df)
+
+        return df
+
+    def atualizar_colunas(df):
+        # Atualizando a coluna 'MES ' com base na coluna 'Data_Saida'
+        df['MES '] = df['Data_Saida'].apply(obter_nome_mes)
+
+        # Atualizando a coluna 'Regiao' com base na coluna 'UF'
+        df['Regiao'] = df['UF'].apply(obter_regiao)
+
+        # Adicionando a coluna '%Frete'
+        df['Perc.Frete'] = df.apply(lambda row: calcular_percentual_frete(row['Valor_Frete'], row['Valor_Total']), axis=1)
+
+        df['Data_Status'] = datetime.now().strftime('%d/%m/%Y')
+
+        return df
+
+    def obter_nome_mes(data):
         # Função para obter o nome do MES a partir da data no formato DD/MM/YYYY
         try:
             data_formatada = pd.to_datetime(data, errors='raise')
@@ -77,257 +158,133 @@ class ConsultaNotas:
             meses_ingles_portugues = {
                 'January': 'Janeiro',
                 'February': 'Fevereiro',
-                'March': 'Março',
-                'April': 'Abril',
-                'May': 'Maio',
-                'June': 'Junho',
-                'July': 'Julho',
-                'August': 'Agosto',
-                'September': 'Setembro',
-                'October': 'Outubro',
-                'November': 'Novembro',
-                'December': 'Dezembro',
+                # Adicione mais meses conforme necessário
             }
             return meses_ingles_portugues.get(nome_mes, '')
         except:
             return ''
 
-    def calcular_percentual_frete(self, valor_frete, valor_total):
+    def calcular_percentual_frete(valor_frete, valor_total):
         # Função para calcular o percentual de frete
         if pd.notna(valor_frete) and pd.notna(valor_total) and valor_total != 0:
             percentual_frete = (valor_frete / valor_total) * 100
             return f"{percentual_frete:.2f}%"
         return ''
 
-    def salvar_resultados_consulta(self, tabela, df):
-        conn = sqlite3.connect(self.db_filename)
-        cursor = conn.cursor()
-
-        # Limpar todos os registros da tabela
-        cursor.execute('DELETE FROM consultas')
-
-        for _, row in df.iterrows():
-            nota = row['Numero_Nota']
-            data_entrega = row['Data_Entrega'] if 'Data_Entrega' in row else None
-
-            # Inserir novos dados
-            cursor.execute('''
-                INSERT INTO consultas (
-                    Nro_Fotus, Data_Saida, MES, UF, Regiao, Numero_Nota, Valor_Total,
-                    Valor_Frete, Peso, Perc_Frete, Transportadora, Dt_Faturamento,
-                    PLATAFORMA, Previsao_Entrega, Data_Entrega, Data_Status, STATUS,
-                    Situacao_Entrega, Leadtime
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                row['Nro_Fotus'], row['Data_Saida'], row['MES'], row['UF'],
-                row['Regiao'], row['Numero_Nota'], row['Valor_Total'],
-                row['Valor_Frete'], row['Peso'], row['Perc_Frete'],
-                row['Transportadora'], row['Dt_Faturamento'],
-                row['PLATAFORMA'], row['Previsao_Entrega'], row['Data_Entrega'],
-                row['Data_Status'], row['STATUS'], row['Situacao_Entrega'], row['Leadtime']
-            ))
-
-        conn.commit()
-        conn.close()
-
-
-
-    def realizar_consulta_por_nota(self, nome_tabela, senha, Numero_Nota, df):
-        payload = {
-            'cnpj': self.dados_login_empresa[nome_tabela]['cnpj'],
-            'NR': Numero_Nota,
-            'chave': senha,
-        }
-
-        response = requests.post(self.url, data=payload)
-
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            info_block = soup.find('tr', {'style': 'background-color:#FFFFFF;cursor:pointer;'})
-
-        if info_block:
-            situacao_element = info_block.find('p', {'class': 'titulo'})
-            nf_element = info_block.find('p', {'class': 'tdb'})
-
-            if situacao_element and nf_element:
-                situacao_text = situacao_element.get_text(strip=True)
-                situacao_text = re.sub(r'\([^)]*\)', '', situacao_text)
-                nf_text = nf_element.get_text(strip=True)
-                data_situacao = self.extrair_data_especifica(soup)
-
-                # Atualize a coluna 'Data_Entrega' se a situação for "MERCADORIA ENTREGUE"
-                if "MERCADORIA ENTREGUE" in situacao_text:
-                    df.loc[df['Numero_Nota'] == Numero_Nota, 'Data_Entrega'] = data_situacao
-
-                    # Atualize a coluna 'Situacao_Entrega' com base nas condições fornecidas
-                    df.loc[df['Numero_Nota'] == Numero_Nota, 'Situacao_Entrega'] = self.atualizar_situacao_entrega(df, Numero_Nota)
-
-                df.loc[df['Numero_Nota'] == Numero_Nota, 'STATUS'] = situacao_text
-
-                # Salvar todos os resultados no banco de dados
-                self.salvar_resultados_consulta(nome_tabela, df)
-
-                # Exibir o DataFrame atualizado após cada consulta
-                dataframe_atualizado.dataframe(df.tail(100000000))
-                st.toast("Resultados salvos no banco de dados.")
-
-
-    def atualizar_situacao_entrega(self, df, Numero_Nota):
-        # Função para atualizar a coluna 'Situacao_Entrega'
-        previsao_entrega = df.loc[df['Numero_Nota'] == Numero_Nota, 'Previsao_Entrega'].values[0]
-        data_entrega = df.loc[df['Numero_Nota'] == Numero_Nota, 'Data_Entrega'].values[0]
-
-        if pd.notna(data_entrega):
-            if data_entrega > previsao_entrega:
-                return "ENTREGUE FORA DO PRAZO"
-            else:
-                return "ENTREGUE NO PRAZO"
-        elif pd.notna(previsao_entrega) and previsao_entrega < datetime.now().strftime('%d/%m/%Y'):
-            return "EM TRANSITO ATRASADO"
-        else:
-            return "EM TRANSITO"
-
-    def atualizar_colunas(self, df):
-        # Atualizando a coluna 'MES ' com base na coluna 'Data_Saida'
-        df['MES '] = df['Data_Saida'].apply(self.obter_nome_mes)
-
-        # Atualizando a coluna 'Regiao' com base na coluna 'UF'
-        df['Regiao'] = df['UF'].apply(self.obter_regiao)
-
-        # Adicionando a coluna '%Frete'
-        df['Perc.Frete'] = df.apply(lambda row: self.calcular_percentual_frete(row['Valor_Frete'], row['Valor_Total']), axis=1)
-
-        df['Data_Status'] = datetime.now().strftime('%d/%m/%Y')
-
-    def obter_regiao(self, uf):
+    def obter_regiao(uf):
         # Mapeando a Regiao com base na UF
         regioes = {
             'AC': 'NORTE',
-            'AL': 'NORDESTE',
-            'AP': 'NORTE',
-            'AM': 'NORTE',
-            'BA': 'NORDESTE',
-            'CE': 'NORDESTE',
-            'DF': 'CENTRO-OESTE',
-            'ES': 'SUDESTE',
-            'GO': 'CENTRO-OESTE',
-            'MA': 'NORDESTE',
-            'MT': 'CENTRO-OESTE',
-            'MS': 'CENTRO-OESTE',
-            'MG': 'SUDESTE',
-            'PA': 'NORTE',
-            'PB': 'NORDESTE',
-            'PR': 'SUL',
-            'PE': 'NORDESTE',
-            'PI': 'NORDESTE',
-            'RJ': 'SUDESTE',
-            'RN': 'NORDESTE',
-            'RS': 'SUL',
-            'RO': 'NORTE',
-            'RR': 'NORTE',
-            'SC': 'SUL',
-            'SP': 'SUDESTE',
-            'SE': 'NORDESTE',
-            'TO': 'NORTE',
+            # Adicione mais mapeamentos conforme necessário
         }
 
         return regioes.get(uf, 'Regiao não encontrada')
 
-    def realizar_consultas(self, tabela_selecionada, df):
-        senha_empresa_selecionada = self.dados_login_empresa.get(tabela_selecionada, {}).get('senha', '')
+    # Upload da planilha
+    uploaded_file = st.file_uploader("Escolha um arquivo XLSX", type="xlsx")
 
-        if not senha_empresa_selecionada:
-            st.write(f'Senha não encontrada para {tabela_selecionada}')
-            return
+    # Botão para realizar as consultas após o upload
+    if uploaded_file is not None:
+        df = load_and_process_data(uploaded_file)
 
-        # Filtrando as notas para a tabela selecionada
-        notas_selecionadas = df.loc[df['Transportadora'] == tabela_selecionada, 'Numero_Nota'].unique().tolist()
+        # Exibir o DataFrame atualizado após o upload
+        st.write(df)
 
-        # Iterando sobre as notas e realizando as consultas
-        for Numero_Nota in notas_selecionadas:
-            self.realizar_consulta_por_nota(tabela_selecionada, senha_empresa_selecionada, Numero_Nota, df)
-            time.sleep(5)  # Atraso de 5 segundos entre as consultas
+# Função para a página de Dados
+def bot_final_page():
 
-# URL para consulta
-url = 'https://ssw.inf.br/2/resultSSW'
 
-# Dados de login para empresas
-dados_login_empresa = {
-    'TG TRANSPORTES GERAIS E DISTRIBUICAO LTDA': {
-        'cnpj': '07117654000149',
-        'senha': 'MAIORALT',
-    },
-    'TENHOMOVEIS COMERCIO DE MOVEIS E UTENSILIOS DOMESTICOS LTDA': {
-        'cnpj': '07117654000149',
-        'senha': ' ',
-    },
-    'CT DISTRIBUICAO E LOGISTICA LTDA': {
-        'cnpj': '07117654000149',
-        'senha': 'FOTUS@',
-    },
-    # Adicione mais empresas conforme necessário
+
+    # Função para realizar as consultas
+    def realizar_consultas():
+        # Conectar ao banco de dados
+        conn = sqlite3.connect('consultas.db')
+        cursor = conn.cursor()
+
+        # Consultar todas as linhas da tabela
+        cursor.execute('SELECT Nro_Fotus, plataforma FROM consultas')
+        resultados = cursor.fetchall()
+
+        # Loop através dos resultados
+        for resultado in resultados:
+            Nro_Fotus, plataforma = resultado
+
+            # Lógica para determinar o valor da variável acao com base na plataforma
+            if plataforma == 'ENTREGUE':
+                ACAO = 4
+            elif plataforma == 'COLETADO':
+                ACAO = 3
+            else:
+                # Se a plataforma não for 'ENTREGUE' nem 'COLETADO', imprima uma mensagem e pule para a próxima iteração
+                st.toast(f"Plataforma não reconhecida para Nro_Fotus {Nro_Fotus}. Pulando para a próxima iteração.")
+                continue
+
+            # Imprimir informações antes de realizar a consulta
+            st.toast(f"Consultando Nro_Fotus: {Nro_Fotus}, Plataforma: {plataforma}, Ação: {ACAO}")
+
+            # Restante do código permanece o mesmo
+            headers = {
+                'authority': 'app.fotus.com.br',
+                'accept': 'application/json, text/plain, */*',
+                'accept-language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+                'authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiUmljYXJkbyBTYW50b3MiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOiJWZW5kZWRvciIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL2VtYWlsYWRkcmVzcyI6InJpY2FyZG8uc2FudG9zQGZvdHVzLmNvbS5iciIsImV4cCI6MTcwMTM5ODA5NSwiaXNzIjoiZmFicmljYV9naSIsImF1ZCI6ImV2ZXJlc3RfZ2kifQ.rFyENS6NX8Yy_9RjaBGFvvSB-PVKi8rK7ukyGGM5yEk',
+                'cache-control': 'no-cache, no-store, must-revalidate',
+                'content-type': 'application/json',
+                'expires': '0',
+                'origin': 'https://app.fotus.com.br',
+                'pragma': 'no-cache',
+                'referer': 'https://app.fotus.com.br/monitoramento-expedicao',
+                'sec-ch-ua': '"Brave";v="119", "Chromium";v="119", "Not?A_Brand";v="24"',
+                'sec-ch-ua-mobile': '?0',
+                'sec-ch-ua-platform': '"Windows"',
+                'sec-fetch-dest': 'empty',
+                'sec-fetch-mode': 'cors',
+                'sec-fetch-site': 'same-origin',
+                'sec-gpc': '1',
+                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+            }
+            json_data = {
+                'idCupom': Nro_Fotus,
+                'acao': ACAO,
+            }
+
+            response = requests.post('https://app.fotus.com.br/API/api/Etapa/SalvarHistorico', headers=headers, json=json_data)
+
+            # Adicionar atraso de 2 segundos entre cada solicitação
+            sleep(2)
+
+            # Note: json_data will not be serialized by requests exactly as it was in the original request.
+            # data = '{"idCupom":"0298066-98","acao":4}'
+            # response = requests.post('https://app.fotus.com.br/API/api/Etapa/SalvarHistorico', headers=headers, data=data)
+
+            # Imprimir informações após a consulta
+            if response.status_code == 200:
+                st.toast(f"Consulta bem-sucedida para Nro_Fotus {Nro_Fotus}", icon="✅")
+            else:
+                st.toast(f"Falha na consulta para Nro_Fotus {Nro_Fotus}")
+
+        # Fechar a conexão com o banco de dados
+        conn.close()
+
+    # Página Streamlit
+    st.title("Aplicativo de Consultas")
+
+    # Botão para iniciar as consultas
+    if st.button("Iniciar Consultas"):
+        realizar_consultas()
+
+pages = {
+    "Upload de dados": Coleta_Dados,
+    "Atualizar plataforma": bot_final_page  
+
 }
 
-# Instância da classe de consulta
-consulta_notas = ConsultaNotas(url, dados_login_empresa)
+# Barra de navegação com as tabs
+selected_page = st.sidebar.radio("Selecione uma página", list(pages.keys()))
 
-# Função para carregar os dados e realizar consultas
-@st.cache_data
-def load_and_process_data(uploaded_file):
-    df = pd.read_excel(uploaded_file)
-
-    # Renomeando as colunas para corresponder à estrutura desejada
-    df.rename(columns={
-        'Numero_Nota': 'Numero_Nota',
-        'Nro_Fotus': 'Nro_Fotus',
-        'Previsao_Entrega': 'Previsao_Entrega',
-        'Data_Entrega': 'Data_Entrega',
-        'Data_Status': 'Data_Status',
-        # Adicione mais renomeações conforme necessário
-    }, inplace=True)
-
-    # Ajustando o formato da coluna "Nro_Fotus" conforme sua expressão
-    df['Nro_Fotus'] = df['Nro_Fotus'].apply(lambda x: f"{str(int(x))[:-2]}-{str(int(x))[-2:]}" if not pd.isna(x) else "")
-
-    # Removendo os pontos da coluna "Numero_Nota"
-    # Corrigindo o nome da coluna após renomeação
-    df['Numero_Nota'] = df['Numero_Nota'].astype(str).str.replace('.', '')
-
-    # Removendo o último caractere de cada valor na coluna 'Numero_Nota'
-    df['Numero_Nota'] = df['Numero_Nota'].astype(str).apply(lambda x: x[:-1] if x.isdigit() else x)
-
-    # Atualizando as colunas 'MES ', 'Regiao' e adicionando a coluna '%Frete'
-    consulta_notas.atualizar_colunas(df)
-
-    # Formatando as colunas de datas
-    df['Data_Saida'] = pd.to_datetime(df['Data_Saida'], errors='coerce').dt.strftime('%d/%m/%Y')
-    df['Previsao_Entrega'] = pd.to_datetime(df['Previsao_Entrega'], errors='coerce').dt.strftime('%d/%m/%Y')
-    df['Data_Entrega'] = pd.to_datetime(df['Data_Entrega'], errors='coerce').dt.strftime('%d/%m/%Y')
-    df['Data_Status'] = pd.to_datetime(df['Data_Status'], errors='coerce').dt.strftime('%d/%m/%Y')
-    df['Dt_Faturamento'] = pd.to_datetime(df['Dt_Faturamento'], errors='coerce').dt.strftime('%d/%m/%Y')
-
-    return df
-
-# Upload da planilha
-uploaded_file = st.file_uploader("Escolha um arquivo XLSX", type="xlsx")
-
-# Botão para realizar as consultas após o upload
-if uploaded_file is not None:
-    df = load_and_process_data(uploaded_file)
-
-    # ... (seu código existente)
-
-    # Seleção da tabela
-    tabelas = df['Transportadora'].unique().tolist()  # Adicione mais tabelas conforme necessário
+# Exibir a página selecionada
+pages[selected_page]()
 
 
-    # Seleção das transportadoras usando checkboxes
-    transportadoras_selecionadas = st.multiselect('Selecione as transportadoras:', tabelas)
 
-    dataframe_atualizado = st.empty()  # Este é o espaço reservado para o DataFrame
 
-    # Botão para realizar as consultas
-    if st.button('Realizar Consultas') and transportadoras_selecionadas:
-        for tabela_selecionada in transportadoras_selecionadas:
-            consulta_notas.realizar_consultas(tabela_selecionada, df)
